@@ -1,7 +1,8 @@
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 
-TOKEN = "ضع_التوكن_هنا"
+# التوكن الخاص بك مضاف هنا بشكل صحيح
+TOKEN = "8671174334:AAGkOq0kDya9p382zxhiTLtuSrYj8BVRrtY"
 
 services_keyboard = [
     ["تصميم مواقع", "تطوير تطبيقات"],
@@ -27,28 +28,29 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 اختر الخدمة المطلوبة للبدء 👇
 """
-
-    await update.message.reply_text(
-        welcome_message,
-        reply_markup=reply_markup
-    )
+    if update.message:
+        await update.message.reply_text(
+            welcome_message,
+            reply_markup=reply_markup
+        )
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_message = update.message.text
-
     response = f"""
 ✅ تم استلام طلبك:
 {user_message}
 
 سيتم التواصل معك قريباً من فريق تمكين.
 """
+    if update.message:
+        await update.message.reply_text(response)
 
-    await update.message.reply_text(response)
-
-app = ApplicationBuilder().token(8671174334:AAGkOq0kDya9p382zxhiTLtuSrYj8BVRrtY).build()
+# بناء التطبيق باستخدام التوكن المعرف أعلاه
+app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-print("Bot is running...")
-app.run_polling()
+if __name__ == "__main__":
+    print("Bot is running...")
+    app.run_polling()
