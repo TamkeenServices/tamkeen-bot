@@ -1,9 +1,27 @@
+import os
+import logging
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
+from telegram.ext import (
+    ApplicationBuilder,
+    CommandHandler,
+    MessageHandler,
+    ContextTypes,
+    filters
+)
 
-# التوكن الخاص بك مضاف هنا بشكل صحيح
-TOKEN = "8671174334:AAGkOq0kDya9p382zxhiTLtuSrYj8BVRrtY"
+# 🔐 المتغيرات
+TOKEN = os.getenv("BOT_TOKEN")
+ADMIN_ID = 8648717626  # رقمك (الإدمن)
 
+PORT = int(os.environ.get("PORT", 8080))
+
+# 🧠 إعدادات الأداء (توفير موارد)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.WARNING
+)
+
+# 📋 لوحة الخدمات
 services_keyboard = [
     ["تصميم مواقع", "تطوير تطبيقات"],
     ["تصميم إعلانات", "برمجة بوتات"],
@@ -15,50 +33,75 @@ reply_markup = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+# 🚀 /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    welcome_message = """
+    await update.message.reply_text(
+        """
 مرحباً بك في تمكين للخدمات الإلكترونية 🚀
 
-نقدم لك:
-• تصميم مواقع
-• تطوير تطبيقات
-• تصميم إعلانات
-• برمجة بوتات
-• إدارة صفحات
+اختر الخدمة المطلوبة 👇
+        """,
+        reply_markup=reply_markup
+    )
 
-اختر الخدمة المطلوبة للبدء 👇
-"""
-    if update.message:
-        await update.message.reply_text(
-            welcome_message,
-            reply_markup=reply_markup
-        )
-
+# 📩 استقبال الطلبات
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_message = update.message.text
-    response = f"""
-✅ تم استلام طلبك:
-{user_message}
+    user = update.message.from_user
+    text = update.message.text
 
-سيتم التواصل معك قريباً من فريق تمكين.
+    # ✅ رد للعميل
+    await update.message.reply_text(
+        "✅ تم استلام طلبك، سيتم التواصل معك قريباً من فريق تمكين."
+    )
+
+    # 📢 إشعار للإدمن
+    admin_message = f"""
+🆕 طلب جديد - تمكين
+
+👤 الاسم: @{user.username if user.username else 'بدون يوزر'}
+🆔 ID: {user.id}
+
+🧾 الخدمة:
+{text}
 """
-    if update.message:
-        await update.message.reply_text(response)
 
-# بناء التطبيق - تأكد من وجود .build() في النهاية
-app = ApplicationBuilder().token(TOKEN).build()
+    await context.bot.send_message(
+        chat_id=ADMIN_ID,
+        text=admin_message
+    )
 
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+# 📊 لوحة إدمن بسيطة
+async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.chat_id != ADMIN_ID:
+        return
+
+    await update.message.reply_text(
+        """
+📊 لوحة تمكين للإدارة
+
+الأوامر:
+- /admin → لوحة التحكم
+- /start → اختبار البوت
+
+🚀 النظام يعمل بشكل طبيعي
+        """
+    )
+
+# 🧠 تشغيل Webhook
+def main():
+    app = ApplicationBuilder().token(TOKEN).build()
+
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("admin", admin_panel))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=os.environ.get("WEBHOOK_URL")
+    )
+
+    print("Bot is running (Webhook Mode)...")
 
 if __name__ == "__main__":
-    print("Bot is running...")
-    import os
-
-PORT = int(os.environ.get("PORT", 8080))
-
-app.run_webhook(
-    listen="0.0.0.0",
-    port=PORT,
-    webhook_url=os.environ.get("WEBHOOK_URL")
-)
+    main()
