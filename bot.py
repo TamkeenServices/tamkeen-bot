@@ -45,7 +45,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message:
         await update.message.reply_text(response)
 
-# بناء التطبيق باستخدام التوكن المعرف أعلاه
+# بناء التطبيق - تأكد من وجود .build() في النهاية
 app = ApplicationBuilder().token(TOKEN).build()
 
 app.add_handler(CommandHandler("start", start))
