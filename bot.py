@@ -53,4 +53,12 @@ app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
 if __name__ == "__main__":
     print("Bot is running...")
-    app.run_polling()
+    import os
+
+PORT = int(os.environ.get("PORT", 8080))
+
+app.run_webhook(
+    listen="0.0.0.0",
+    port=PORT,
+    webhook_url=os.environ.get("WEBHOOK_URL")
+)
