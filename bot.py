@@ -88,7 +88,7 @@ async def get_phone_and_finish(update: Update, context: ContextTypes.DEFAULT_TYP
         ]
     ]
     
-    # إرسال لكل الأدمنز (ستصلك بمجرد فتح الإنترنت في هاتفك)
+    # إرسال لكل الأدمنز
     for admin_id in ADMIN_IDS:
         try:
             await context.bot.send_message(
@@ -133,7 +133,7 @@ def main():
     application = Application.builder().token(BOT_TOKEN).build()
 
     conv_handler = ConversationHandler(
-        entry_points=[CallbackQueryHandler(handle_services, pattern="^service_")] ,
+        entry_points=[CallbackQueryHandler(handle_services, pattern="^service_")],
         states={
             CHOOSING_SERVICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
             GETTING_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone_and_finish)]
