@@ -1,250 +1,151 @@
-import os
 import logging
-import subprocess
-
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    ApplicationBuilder,
+    Application,
     CommandHandler,
+    CallbackQueryHandler,
     MessageHandler,
+    filters,
     ContextTypes,
-    filters
+    ConversationHandler,
 )
 
-# ==============================
-# 🔐 الإعدادات الأساسية
-# ==============================
+# إعدادات مراقبة الأخطاء
+logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-TOKEN = os.getenv("BOT_TOKEN")
+# --- البيانات الخاصة بك ---
+BOT_TOKEN = "8671174334:AAGkOq0kDya9p382zxhiTLtuSrYj8BVRrtY"
+ADMIN_IDS = [8648717626, 8120387879]  # حسابك وحساب الأدمن الثاني
 
-# رقم الإدمن الخاص بك
-ADMIN_ID = 8648717626
+# مراحل المحادثة لتقديم الطلبات
+CHOOSING_SERVICE, GETTING_DETAILS, GETTING_PHONE = range(3)
 
-# رابط الـ Webhook من Railway
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
-
-# المنفذ الخاص بـ Railway
-PORT = int(os.environ.get("PORT", 8080))
-
-# ==============================
-# ⚡ تحسين الأداء وتقليل الاستهلاك
-# ==============================
-
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.WARNING
-)
-
-# ==============================
-# 📋 لوحة الخدمات
-# ==============================
-
-services_keyboard = [
-    ["تصميم مواقع", "تطوير تطبيقات"],
-    ["تصميم إعلانات", "برمجة بوتات"],
-    ["إدارة صفحات", "خدمات أخرى"]
-]
-
-reply_markup = ReplyKeyboardMarkup(
-    services_keyboard,
-    resize_keyboard=True
-)
-
-# ==============================
-# 🚀 رسالة البداية
-# ==============================
-
+# --- دالة البداية /start ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    welcome_text = (
+        f"✨ **مرحباً بك في بوت شركة تمكين للخدمات الرقمية** ✨\n\n"
+        f"نحن هنا لتلبية تطلعاتك التقنية وتطوير أعمالك.\n"
+        f"فضلاً، اختر الخدمة التي ترغب بها من الأزرار أدناه للبدء:"
+    )
+    
+    keyboard = [
+        [InlineKeyboardButton("🌐 تصميم وتطوير المواقع", callback_data="service_web")],
+        [InlineKeyboardButton("🤖 برمجة بوتات تليجرام الذكية", callback_data="service_bot")],
+        [InlineKeyboardButton("🎨 التصميم الجرافيكي والهوية", callback_data="service_design")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
 
-    welcome_message = """
-🚀 مرحباً بك في تمكين للخدمات الإلكترونية
+# --- بدء التفاعل عند اختيار خدمة ---
+async def handle_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    services_map = {
+        "service_web": "تصميم وتطوير المواقع",
+        "service_bot": "برمجة بوتات تليجرام الذكية",
+        "service_design": "التصميم الجرافيكي والهوية"
+    }
+    context.user_data['selected_service'] = services_map.get(query.data)
+    
+    await query.message.reply_text(
+        f"لقد اخترت: **{context.user_data['selected_service']}**\n\n"
+        f"الرجاء كتابة تفاصيل طلبك والمواصفات المطلوبة بدقة 👇:"
+    )
+    return CHOOSING_SERVICE
 
-نقدم لك خدمات احترافية تشمل:
+# --- استلام تفاصيل الخدمة ---
+async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['order_details'] = update.message.text
+    await update.message.reply_text("🎯 ممتاز! الآن أرسل رقم هاتفك أو وسيلة التواصل المفضلة لديك:")
+    return GETTING_PHONE
 
-• تصميم مواقع إلكترونية
-• تطوير تطبيقات
-• برمجة بوتات تيليجرام
-• تصميم إعلانات احترافية
-• إدارة صفحات السوشيال ميديا
-
-📩 اختر الخدمة المطلوبة للبدء 👇
-"""
-
+# --- إنهاء الطلب وإرساله للأدمنز مباشرة ---
+async def get_phone_and_finish(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data['phone'] = update.message.text
+    user = update.effective_user
+    
+    # رسالة للعميل
     await update.message.reply_text(
-        welcome_message,
-        reply_markup=reply_markup
+        "✅ **تم استلام طلبك بنجاح!**\n"
+        "سيقوم فريق تمكين بمراجعة البيانات والتواصل معك سريعاً. شكراً لك! ✨"
     )
 
-# ==============================
-# 📩 استقبال رسائل العملاء
-# ==============================
-
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    user = update.message.from_user
-    text = update.message.text
-
-    # ✅ رد تلقائي للعميل
-    await update.message.reply_text(
-        "✅ تم استلام طلبك بنجاح.\nسيتم التواصل معك قريباً من فريق تمكين."
+    # --- تحضير الإشعار الفوري للأدمنز ---
+    admin_alert = (
+        f"🚨 **طلب جديد لشركة تمكين**\n\n"
+        f"👤 **العميل:** {user.full_name} (@{user.username})\n"
+        f"🛠️ **الخدمة:** {context.user_data['selected_service']}\n"
+        f"📝 **التفاصيل:** {context.user_data['order_details']}\n"
+        f"📞 **التواصل:** {context.user_data['phone']}"
     )
+    
+    admin_buttons = [
+        [
+            InlineKeyboardButton("✅ قبول وتواصل", callback_data=f"approve_{user.id}"),
+            InlineKeyboardButton("❌ رفض الطلب", callback_data=f"reject_{user.id}")
+        ]
+    ]
+    
+    # إرسال لكل الأدمنز (ستصلك بمجرد فتح الإنترنت في هاتفك)
+    for admin_id in ADMIN_IDS:
+        try:
+            await context.bot.send_message(
+                chat_id=admin_id, 
+                text=admin_alert, 
+                reply_markup=InlineKeyboardMarkup(admin_buttons),
+                parse_mode="Markdown"
+            )
+        except Exception as e:
+            logger.error(f"خطأ في الإرسال للأدمن {admin_id}: {e}")
+    
+    context.user_data.clear()
+    return ConversationHandler.END
 
-    # 📢 إرسال الطلب للإدمن
-    admin_message = f"""
-🆕 طلب جديد - تمكين
+# --- التحكم بالطلبات (قبول/رفض) من قبل الأدمنز ---
+async def handle_admin_actions(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    
+    action, client_id = query.data.split('_')
 
-👤 الاسم:
-{user.full_name}
+    if action == "approve":
+        await query.edit_message_text(text=query.message.text + "\n\n🟢 **الإجراء الحالي:** تم قبول الطلب.")
+        try:
+            await context.bot.send_message(chat_id=int(client_id), text="🟢 **تحديث من تمكين:** تم قبول طلبك وجاري التواصل معك الآن.")
+        except Exception:
+            pass
+            
+    elif action == "reject":
+        await query.edit_message_text(text=query.message.text + "\n\n🔴 **الإجراء الحالي:** تم رفض الطلب.")
+        try:
+            await context.bot.send_message(chat_id=int(client_id), text="🔴 **تحديث:** نعتذر منك، لم يتم قبول طلبك الحالي لعدم إمكانية التنفيذ حالياً.")
+        except Exception:
+            pass
 
-📛 اليوزر:
-@{user.username if user.username else 'لا يوجد'}
-
-🆔 ID:
-{user.id}
-
-🧾 الطلب:
-{text}
-"""
-
-    await context.bot.send_message(
-        chat_id=ADMIN_ID,
-        text=admin_message
-    )
-
-# ==============================
-# 📊 لوحة الإدارة
-# ==============================
-
-async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    if update.message.chat_id != ADMIN_ID:
-        return
-
-    admin_text = """
-📊 لوحة تحكم تمكين
-
-الأوامر المتاحة:
-
-/admin → لوحة الإدارة
-/update → تحديث البوت
-/restart → إعادة تشغيل البوت
-/status → حالة النظام
-
-✅ النظام يعمل بشكل طبيعي
-"""
-
-    await update.message.reply_text(admin_text)
-
-# ==============================
-# 🔄 تحديث البوت من GitHub
-# ==============================
-
-async def update_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    user_id = update.message.chat_id
-
-    if user_id != ADMIN_ID:
-        await update.message.reply_text(
-            "❌ غير مصرح لك باستخدام هذا الأمر."
-        )
-        return
-
-    await update.message.reply_text(
-        "🔄 جاري تحديث النظام..."
-    )
-
-    try:
-
-        result = subprocess.run(
-            ["git", "pull"],
-            capture_output=True,
-            text=True
-        )
-
-        output = result.stdout + result.stderr
-
-        await update.message.reply_text(
-            f"✅ تم التحديث بنجاح:\n\n{output}"
-        )
-
-        # إعادة تشغيل
-        os._exit(0)
-
-    except Exception as e:
-
-        await update.message.reply_text(
-            f"❌ خطأ أثناء التحديث:\n{str(e)}"
-        )
-
-# ==============================
-# 🔁 إعادة تشغيل البوت
-# ==============================
-
-async def restart_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    if update.message.chat_id != ADMIN_ID:
-        return
-
-    await update.message.reply_text(
-        "♻️ جاري إعادة تشغيل البوت..."
-    )
-
-    os._exit(0)
-
-# ==============================
-# 📡 حالة النظام
-# ==============================
-
-async def system_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    if update.message.chat_id != ADMIN_ID:
-        return
-
-    status_text = """
-🟢 حالة النظام
-
-✅ البوت يعمل
-✅ Webhook متصل
-✅ Railway يعمل
-✅ نظام تمكين نشط
-"""
-
-    await update.message.reply_text(status_text)
-
-# ==============================
-# 🚀 تشغيل النظام
-# ==============================
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("تم إلغاء العملية.")
+    context.user_data.clear()
+    return ConversationHandler.END
 
 def main():
+    application = Application.builder().token(BOT_TOKEN).build()
 
-    app = ApplicationBuilder().token(TOKEN).build()
-
-    # الأوامر
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("admin", admin_panel))
-    app.add_handler(CommandHandler("update", update_bot))
-    app.add_handler(CommandHandler("restart", restart_bot))
-    app.add_handler(CommandHandler("status", system_status))
-
-    # استقبال الرسائل
-    app.add_handler(
-        MessageHandler(
-            filters.TEXT & ~filters.COMMAND,
-            handle_message
-        )
+    conv_handler = ConversationHandler(
+        entry_points=[CallbackQueryHandler(handle_services, pattern="^service_")] ,
+        states={
+            CHOOSING_SERVICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_details)],
+            GETTING_PHONE: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_phone_and_finish)]
+        },
+        fallbacks=[CommandHandler('cancel', cancel)]
     )
 
-    # تشغيل Webhook
-    app.run_webhook(
-        listen="0.0.0.0",
-        port=PORT,
-        webhook_url=WEBHOOK_URL
-    )
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(conv_handler)
+    application.add_handler(CallbackQueryHandler(handle_admin_actions, pattern="^(approve_|reject_)"))
 
-# ==============================
-# ▶️ بدء التشغيل
-# ==============================
+    application.run_polling()
 
-if __name__ == "__main__":
-    print("🚀 Tamkeen Bot Running...")
+if __name__ == '__main__':
     main()
