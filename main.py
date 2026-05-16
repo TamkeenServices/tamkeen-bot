@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -11,7 +12,10 @@ from telegram.ext import (
 )
 
 # إعدادات مراقبة الأخطاء
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', 
+    level=logging.INFO
+)
 logger = logging.getLogger(__name__)
 
 # --- البيانات الخاصة بك ---
@@ -55,7 +59,7 @@ async def handle_services(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return CHOOSING_SERVICE
 
-# --- استلام تفاصيل الخدمة ---
+# --- Axstlam تفاصيل الخدمة ---
 async def get_details(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['order_details'] = update.message.text
     await update.message.reply_text("🎯 ممتاز! الآن أرسل رقم هاتفك أو وسيلة التواصل المفضلة لديك:")
@@ -130,7 +134,8 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 def main():
-    application = Application.builder().token(BOT_TOKEN).build()
+    # بناء التطبيق مع تفعيل مسح الويب هوك لتنظيف الاتصالات القديمة
+    application = Application.builder().token(BOT_TOKEN).drop_pending_updates(True).build()
 
     conv_handler = ConversationHandler(
         entry_points=[CallbackQueryHandler(handle_services, pattern="^service_")],
@@ -145,6 +150,7 @@ def main():
     application.add_handler(conv_handler)
     application.add_handler(CallbackQueryHandler(handle_admin_actions, pattern="^(approve_|reject_)"))
 
+    # تشغيل البوت
     application.run_polling()
 
 if __name__ == '__main__':
